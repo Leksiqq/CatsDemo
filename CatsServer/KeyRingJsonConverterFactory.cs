@@ -13,7 +13,7 @@ public class KeyRingJsonConverterFactory : JsonConverterFactory
     public override bool CanConvert(Type typeToConvert)
     {
         IKeyBox keyBox = _serviceProvider.GetRequiredService<IKeyBox>();
-        return keyBox.HasMappedPrimaryKeys(typeToConvert);
+        return keyBox.HasMappedKeys(typeToConvert);
     }
 
     public override JsonConverter? CreateConverter(Type typeToConvert, JsonSerializerOptions options)

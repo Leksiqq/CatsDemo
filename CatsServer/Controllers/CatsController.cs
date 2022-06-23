@@ -1,31 +1,38 @@
 ﻿using CatsModel;
 using CatsModel.Filters;
-using CatsServer;
 using CatsUtil;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Net.Leksi.KeyBox;
-using System.Text;
 using System.Text.Json;
 
 namespace CatsServer.Controllers;
 
 public class CatsController : Controller
 {
-    [Route("/breeds")]
-    public async Task GetBreedsAsync()
+    [Route("/breeds/{filter?}")]
+    public async Task GetBreedsAsync(string? filter)
     {
         JsonSerializerOptions jsonSerializerOptions = new();
         jsonSerializerOptions.Converters.Add(HttpContext.RequestServices.GetRequiredService<KeyRingJsonConverterFactory>());
-        await HttpContext.Response.WriteAsJsonAsync<IAsyncEnumerable<Breed>>(HttpContext.RequestServices.GetRequiredService<Storage>().GetBreedsAsync(), jsonSerializerOptions);
+        BreedListFilter? filterObject = null;
+        if (filter is { })
+        {
+            filterObject = JsonSerializer.Deserialize<BreedListFilter>(filter, jsonSerializerOptions);
+        }
+        await HttpContext.Response.WriteAsJsonAsync<IAsyncEnumerable<Breed>>(HttpContext.RequestServices.GetRequiredService<Storage>().GetBreedsAsync(filterObject), jsonSerializerOptions);
     }
 
-    [Route("/catteries")]
-    public async Task GetCatteriesAsync()
+    [Route("/catteries/{filter?}")]
+    public async Task GetCatteriesAsync(string? filter)
     {
         JsonSerializerOptions jsonSerializerOptions = new();
         jsonSerializerOptions.Converters.Add(HttpContext.RequestServices.GetRequiredService<KeyRingJsonConverterFactory>());
-        await HttpContext.Response.WriteAsJsonAsync<IAsyncEnumerable<Cattery>>(HttpContext.RequestServices.GetRequiredService<Storage>().GetCatteriesAsync(), jsonSerializerOptions);
+        CatteryListFilter? filterObject = null;
+        if (filter is { })
+        {
+            filterObject = JsonSerializer.Deserialize<CatteryListFilter>(filter, jsonSerializerOptions);
+        }
+        await HttpContext.Response.WriteAsJsonAsync<IAsyncEnumerable<Cattery>>(HttpContext.RequestServices.GetRequiredService<Storage>().GetCatteriesAsync(filterObject), jsonSerializerOptions);
     }
 
     [Route("/cats/{filter?}")]

@@ -20,12 +20,12 @@ public class GeneratingController : Controller
         int firstMomsFreq = 365;
         IKeyBox keyBox = HttpContext.RequestServices.GetRequiredService<IKeyBox>();
         List<Breed> breeds = new();
-        await foreach (var it in HttpContext.RequestServices.GetRequiredService<Storage>().GetBreedsAsync())
+        await foreach (var it in HttpContext.RequestServices.GetRequiredService<Storage>().GetBreedsAsync(null))
         {
             breeds.Add(it);
         }
         List<Cattery> catteries = new();
-        await foreach (var it in HttpContext.RequestServices.GetRequiredService<Storage>().GetCatteriesAsync())
+        await foreach (var it in HttpContext.RequestServices.GetRequiredService<Storage>().GetCatteriesAsync(null))
         {
             catteries.Add(it);
         }

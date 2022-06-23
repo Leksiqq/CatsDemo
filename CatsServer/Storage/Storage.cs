@@ -18,8 +18,18 @@ public class Storage
     public Storage(IServiceProvider serviceProvider, string connectionString) => 
         (_connectionString, _serviceProvider) = (connectionString, serviceProvider);
 
-    public async IAsyncEnumerable<Breed> GetBreedsAsync()
+    public async IAsyncEnumerable<Breed> GetBreedsAsync(BreedListFilter? filterObject)
     {
+        Regex? SearchRegex = null;
+
+        if (filterObject is { })
+        {
+            if (filterObject.SearchRegex is { })
+            {
+                SearchRegex = new(filterObject.SearchRegex, RegexOptions.IgnoreCase);
+            }
+        }
+
         using SqlConnection conn = new(_connectionString);
         await conn.OpenAsync();
 
@@ -28,18 +38,40 @@ public class Storage
         using DbDataReader dataReader = await sqlCommand.ExecuteReaderAsync(CommandBehavior.CloseConnection);
         while (await dataReader.ReadAsync())
         {
-            Breed breed = _serviceProvider.GetRequiredService<Breed>();
-            IKeyRing keyRing = _serviceProvider.GetRequiredService<IKeyBox>().GetKeyRing(breed)!;
-            keyRing["IdBreed"] = dataReader["IdBreed"];
-            keyRing["IdGroup"] = dataReader["IdGroup"];
-            breed.NameEng = dataReader["NameEng"].ToString()!.Trim();
-            breed.NameNat = dataReader["NameNat"].ToString()!.Trim();
-            yield return breed;
+            if (
+                SearchRegex is null
+                || SearchRegex.IsMatch(dataReader["NameEng"].ToString()!.Trim()) || SearchRegex.IsMatch(dataReader["NameNat"].ToString()!.Trim())
+                || SearchRegex.IsMatch(dataReader["IdBreed"].ToString()!.Trim()) || SearchRegex.IsMatch(dataReader["IdGroup"].ToString()!.Trim())
+            )
+            {
+                Breed breed = _serviceProvider.GetRequiredService<Breed>();
+                IKeyRing keyRing = _serviceProvider.GetRequiredService<IKeyBox>().GetKeyRing(breed)!;
+                keyRing["IdBreed"] = dataReader["IdBreed"];
+                keyRing["IdGroup"] = dataReader["IdGroup"];
+                breed.NameEng = dataReader["NameEng"].ToString()!.Trim();
+                breed.NameNat = dataReader["NameNat"].ToString()!.Trim();
+                if(Breed.ins is null)
+                {
+                    Breed.ins = breed;
+                    Console.WriteLine($"Fix {breed.GetHashCode()}");
+                }
+                yield return breed;
+            }
         }
     }
 
-    internal async IAsyncEnumerable<Cattery> GetCatteriesAsync()
+    internal async IAsyncEnumerable<Cattery> GetCatteriesAsync(CatteryListFilter? filterObject)
     {
+        Regex? SearchRegex = null;
+
+        if (filterObject is { })
+        {
+            if (filterObject.SearchRegex is { })
+            {
+                SearchRegex = new(filterObject.SearchRegex, RegexOptions.IgnoreCase);
+            }
+        }
+
         using SqlConnection conn = new(_connectionString);
         await conn.OpenAsync();
 
@@ -48,12 +80,18 @@ public class Storage
         using DbDataReader dataReader = await sqlCommand.ExecuteReaderAsync();
         while (await dataReader.ReadAsync())
         {
-            Cattery cattery = _serviceProvider.GetRequiredService<Cattery>();
-            IKeyRing keyRing = _serviceProvider.GetRequiredService<IKeyBox>().GetKeyRing(cattery)!;
-            keyRing["IdCattery"] = dataReader["IdCattery"].ToString()!.Trim();
-            cattery.NameEng = dataReader["NameEng"].ToString()!.Trim();
-            cattery.NameNat = dataReader["NameNat"].ToString()!.Trim();
-            yield return cattery;
+            if (
+                SearchRegex is null
+                || SearchRegex.IsMatch(dataReader["NameEng"].ToString()!.Trim()) || SearchRegex.IsMatch(dataReader["NameNat"].ToString()!.Trim())
+            )
+            {
+                Cattery cattery = _serviceProvider.GetRequiredService<Cattery>();
+                IKeyRing keyRing = _serviceProvider.GetRequiredService<IKeyBox>().GetKeyRing(cattery)!;
+                keyRing["IdCattery"] = dataReader["IdCattery"].ToString()!.Trim();
+                cattery.NameEng = dataReader["NameEng"].ToString()!.Trim();
+                cattery.NameNat = dataReader["NameNat"].ToString()!.Trim();
+                yield return cattery;
+            }
         }
     }
 
@@ -77,48 +115,11 @@ public class Storage
 
         if (filterObject is { })
         {
-            StringBuilder sbWhere = new();
-            if (filterObject.Cattery is { })
-            {
-                sbWhere.Append("Cats.IdCattery=@IDCattery");
-                IKeyRing keyRingCattery = _serviceProvider.GetRequiredService<IKeyBox>().GetKeyRing(filterObject.Cattery)!;
-                sqlCommand.Parameters.AddWithValue("IDCattery", keyRingCattery["IDCattery"]!);
-            }
-            if (filterObject.BornAfter is { })
-            {
-                if (sbWhere.Length > 0)
-                {
-                    sbWhere.Append(" AND ");
-                }
-                sbWhere.Append("Litters.Date>=@BornAfter");
-                sqlCommand.Parameters.AddWithValue("BornAfter", filterObject.BornAfter?.ToString("yyyy-MM-dd"));
-            }
-            if (filterObject.BornBefore is { })
-            {
-                if (sbWhere.Length > 0)
-                {
-                    sbWhere.Append(" AND ");
-                }
-                sbWhere.Append("Litters.Date<=@BornBefore");
-                sqlCommand.Parameters.AddWithValue("BornBefore", filterObject.BornBefore?.ToString("yyyy-MM-dd"));
-            }
-            if (filterObject.Gender is { })
-            {
-                if (sbWhere.Length > 0)
-                {
-                    sbWhere.Append(" AND ");
-                }
-                sbWhere.Append("Gender=@Gender");
-                sqlCommand.Parameters.AddWithValue("Gender", filterObject.Gender switch { Gender.Male =>  "M", _ => "F"});
-            }
             if (filterObject.NameRegex is { })
             {
                 NameRegex = new(filterObject.NameRegex, RegexOptions.IgnoreCase);
             }
-            if (sbWhere.Length > 0)
-            {
-                sb.Append(" WHERE ").Append(sbWhere);
-            }
+            ApplyCatListFilter(filterObject, sqlCommand, sb);
         }
 
         sqlCommand.CommandText = sb.ToString();
@@ -171,7 +172,7 @@ public class Storage
 
                 if (_serviceProvider.GetRequiredService<IKeyBox>().GetKeyRing(cat.Cattery) is IKeyRing keyRingCattery)
                 {
-                    keyRingCattery["IdCattery"] = dataReader["IdCat"].ToString()!.Trim();
+                    keyRingCattery["IdCattery"] = dataReader["IdCattery"].ToString()!.Trim();
                     if (cache.TryGet(keyRingCattery, out Cattery? cattery1))
                     {
                         cat.Cattery = cattery1!;
@@ -206,5 +207,70 @@ public class Storage
                 yield return cat;
             }
         }
+    }
+
+    private void ApplyCatListFilter(CatListFilter filterObject, SqlCommand sqlCommand, StringBuilder sb)
+    {
+        StringBuilder sbWhere = new();
+        if (filterObject.Cattery is { })
+        {
+            sbWhere.Append("Cats.IdCattery=@IDCattery");
+            IKeyRing keyRingCattery = _serviceProvider.GetRequiredService<IKeyBox>().GetKeyRing(filterObject.Cattery)!;
+            sqlCommand.Parameters.AddWithValue("IDCattery", keyRingCattery["IDCattery"]!);
+        }
+        if (filterObject.BornAfter is { })
+        {
+            if (sbWhere.Length > 0)
+            {
+                sbWhere.Append(" AND ");
+            }
+            sbWhere.Append("Litters.Date>=@BornAfter");
+            sqlCommand.Parameters.AddWithValue("BornAfter", filterObject.BornAfter?.ToString("yyyy-MM-dd"));
+        }
+        if (filterObject.BornBefore is { })
+        {
+            if (sbWhere.Length > 0)
+            {
+                sbWhere.Append(" AND ");
+            }
+            sbWhere.Append("Litters.Date<=@BornBefore");
+            sqlCommand.Parameters.AddWithValue("BornBefore", filterObject.BornBefore?.ToString("yyyy-MM-dd"));
+        }
+        if (filterObject.Gender is { })
+        {
+            if (sbWhere.Length > 0)
+            {
+                sbWhere.Append(" AND ");
+            }
+            sbWhere.Append("Gender=@Gender");
+            sqlCommand.Parameters.AddWithValue("Gender", filterObject.Gender switch { Gender.Male => "M", _ => "F" });
+        }
+        if (filterObject.Mother is { })
+        {
+            if (sbWhere.Length > 0)
+            {
+                sbWhere.Append(" AND ");
+            }
+            sbWhere.Append("IdMother=@IdMother AND IdMotherCattery=@IdMotherCattery");
+            IKeyRing keyRingMother = _serviceProvider.GetRequiredService<IKeyBox>().GetKeyRing(filterObject.Mother)!;
+            sqlCommand.Parameters.AddWithValue("IdMother", keyRingMother["IdCat"]);
+            sqlCommand.Parameters.AddWithValue("IdMotherCattery", keyRingMother["IdCattery"]);
+        }
+        if (filterObject.Father is { })
+        {
+            if (sbWhere.Length > 0)
+            {
+                sbWhere.Append(" AND ");
+            }
+            sbWhere.Append("Cats.IdLitter is not null AND Litters.IdMale=@IdFather AND  Litters.IdMaleCattery=@IdFatherCattery");
+            IKeyRing keyRingFather = _serviceProvider.GetRequiredService<IKeyBox>().GetKeyRing(filterObject.Father)!;
+            sqlCommand.Parameters.AddWithValue("IdFather", keyRingFather["IdCat"]);
+            sqlCommand.Parameters.AddWithValue("IdFatherCattery", keyRingFather["IdCattery"]);
+        }
+        if (sbWhere.Length > 0)
+        {
+            sb.Append(" WHERE ").Append(sbWhere);
+        }
+
     }
 }
