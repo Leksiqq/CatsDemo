@@ -14,7 +14,6 @@ builder.Services.AddKeyBox(config => {
 
 builder.Services.AddSingleton<Storage>(serviceProvider => new Storage(serviceProvider, builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddTransient<KeyRingJsonConverterFactory>();
-builder.Services.AddTransient(typeof(KeyRingJsonConverter<>));
 builder.Services.AddTransient<DateOnlyJsonConverter>();
 builder.Services.AddTransient(typeof(EnumJsonConverter<>));
 builder.Services.AddTransient<ObjectCache>();

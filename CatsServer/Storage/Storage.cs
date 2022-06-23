@@ -50,11 +50,6 @@ public class Storage
                 keyRing["IdGroup"] = dataReader["IdGroup"];
                 breed.NameEng = dataReader["NameEng"].ToString()!.Trim();
                 breed.NameNat = dataReader["NameNat"].ToString()!.Trim();
-                if(Breed.ins is null)
-                {
-                    Breed.ins = breed;
-                    Console.WriteLine($"Fix {breed.GetHashCode()}");
-                }
                 yield return breed;
             }
         }
