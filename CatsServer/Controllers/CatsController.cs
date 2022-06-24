@@ -16,7 +16,7 @@ public class CatsController : Controller
         KeyRingJsonConverterFactory converter = HttpContext.RequestServices.GetRequiredService<KeyRingJsonConverterFactory>();
         converter.PrimaryKeyFound += arg =>
         {
-            Console.WriteLine(arg);
+            //Console.WriteLine(arg);
         };
         jsonSerializerOptions.Converters.Add(converter);
         BreedListFilter? filterObject = null;
@@ -34,7 +34,7 @@ public class CatsController : Controller
         KeyRingJsonConverterFactory converter = HttpContext.RequestServices.GetRequiredService<KeyRingJsonConverterFactory>();
         converter.PrimaryKeyFound += arg => 
         {
-            Console.WriteLine(arg);
+            //Console.WriteLine(arg);
         };
         jsonSerializerOptions.Converters.Add(converter);
         CatteryListFilter? filterObject = null;
@@ -51,9 +51,20 @@ public class CatsController : Controller
     {
         JsonSerializerOptions jsonSerializerOptions = new();
         KeyRingJsonConverterFactory converter = HttpContext.RequestServices.GetRequiredService<KeyRingJsonConverterFactory>();
+        ObjectCache cache = new();
         converter.PrimaryKeyFound += arg =>
         {
-            Console.WriteLine(arg);
+            if (!arg.IsReading)
+            {
+                if(cache.TryGet(arg.Value.GetType(), arg.KeyRing, out object _))
+                {
+                    arg.Interrupt = true;
+                }
+                else
+                {
+                    cache.Add(arg.Value.GetType(), arg.KeyRing, arg.Value);
+                }
+            }
         };
         jsonSerializerOptions.Converters.Add(converter);
         jsonSerializerOptions.Converters.Add(HttpContext.RequestServices.GetRequiredService<DateOnlyJsonConverter>());
@@ -62,6 +73,11 @@ public class CatsController : Controller
         if (filter is { })
         {
             filterObject = JsonSerializer.Deserialize<CatListFilter>(filter, jsonSerializerOptions);
+            if(filterObject.Ancestor is { })
+            {
+                await HttpContext.Response.WriteAsJsonAsync<IAsyncEnumerable<Cat>>(HttpContext.RequestServices.GetRequiredService<Storage>().GetDescendantsAsync(filterObject), jsonSerializerOptions);
+                return;
+            }
         }
         await HttpContext.Response.WriteAsJsonAsync<IAsyncEnumerable<Cat>>(HttpContext.RequestServices.GetRequiredService<Storage>().GetCatsAsync(filterObject), jsonSerializerOptions);
     }

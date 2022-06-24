@@ -7,6 +7,38 @@ namespace CatsServer.Controllers;
 
 public class GeneratingController : Controller
 {
+    [Route("/generate/colors")]
+    public async Task GenerateColorsAsync(string? till)
+    {
+        Random random = new();
+        string letters = "abcdefghjnopqrswxy";
+        IKeyBox keyBox = HttpContext.RequestServices.GetRequiredService<IKeyBox>();
+
+        HttpContext.Response.ContentType = "text/plain; charset=utf-8";
+
+        await foreach (var it in HttpContext.RequestServices.GetRequiredService<Storage>().GetCatsAsync(null))
+        {
+            IKeyRing keyRing = keyBox.GetKeyRing(it);
+            await HttpContext.Response.WriteAsync($"update Cats set Exterior='{letters[random.Next(0, letters.Length)]}' where IdCat={keyRing["IdCat"]} and IdCattery={keyRing["IdCattery"]};\n");
+        }
+    }
+
+    [Route("/generate/titles")]
+    public async Task GenerateTitlesAsync(string? till)
+    {
+        Random random = new();
+        string[] titles = new[] { "WCH", "GEC", "EC", "GIC", "IC", "CH" };
+        IKeyBox keyBox = HttpContext.RequestServices.GetRequiredService<IKeyBox>();
+
+        HttpContext.Response.ContentType = "text/plain; charset=utf-8";
+
+        await foreach (var it in HttpContext.RequestServices.GetRequiredService<Storage>().GetCatsAsync(null))
+        {
+            IKeyRing keyRing = keyBox.GetKeyRing(it);
+            await HttpContext.Response.WriteAsync($"update Cats set title='{titles[random.Next(0, titles.Length)]}' where IdCat={keyRing["IdCat"]} and IdCattery={keyRing["IdCattery"]};\n");
+        }
+    }
+
     [Route("/generate/cats/{till=null}")]
     public async Task GenerateCatsAsync(string? till)
     {
