@@ -4,5 +4,6 @@ public enum Gender
 {
     Female,
     Male,
-    Castrate
+    FemaleCastrate,
+    MaleCastrate
 }

@@ -14,10 +14,6 @@ public class CatsController : Controller
     {
         JsonSerializerOptions jsonSerializerOptions = new();
         KeyRingJsonConverterFactory converter = HttpContext.RequestServices.GetRequiredService<KeyRingJsonConverterFactory>();
-        converter.PrimaryKeyFound += arg =>
-        {
-            //Console.WriteLine(arg);
-        };
         jsonSerializerOptions.Converters.Add(converter);
         BreedListFilter? filterObject = null;
         if (filter is { })
@@ -32,10 +28,6 @@ public class CatsController : Controller
     {
         JsonSerializerOptions jsonSerializerOptions = new();
         KeyRingJsonConverterFactory converter = HttpContext.RequestServices.GetRequiredService<KeyRingJsonConverterFactory>();
-        converter.PrimaryKeyFound += arg => 
-        {
-            //Console.WriteLine(arg);
-        };
         jsonSerializerOptions.Converters.Add(converter);
         CatteryListFilter? filterObject = null;
         if (filter is { })
@@ -51,7 +43,7 @@ public class CatsController : Controller
     {
         JsonSerializerOptions jsonSerializerOptions = new();
         KeyRingJsonConverterFactory converter = HttpContext.RequestServices.GetRequiredService<KeyRingJsonConverterFactory>();
-        ObjectCache cache = new();
+        CatsUtil.ObjectCache cache = new();
         converter.PrimaryKeyFound += arg =>
         {
             if (!arg.IsReading)
@@ -73,9 +65,14 @@ public class CatsController : Controller
         if (filter is { })
         {
             filterObject = JsonSerializer.Deserialize<CatListFilter>(filter, jsonSerializerOptions);
-            if(filterObject.Ancestor is { })
+            if (filterObject?.Ancestor is { })
             {
                 await HttpContext.Response.WriteAsJsonAsync<IAsyncEnumerable<Cat>>(HttpContext.RequestServices.GetRequiredService<Storage>().GetDescendantsAsync(filterObject), jsonSerializerOptions);
+                return;
+            }
+            if (filterObject?.Descendant is { })
+            {
+                await HttpContext.Response.WriteAsJsonAsync<IAsyncEnumerable<Cat>>(HttpContext.RequestServices.GetRequiredService<Storage>().GetAncestorsAsync(filterObject), jsonSerializerOptions);
                 return;
             }
         }

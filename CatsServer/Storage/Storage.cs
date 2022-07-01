@@ -90,45 +90,96 @@ public class Storage
         }
     }
 
+    internal async IAsyncEnumerable<Cat> GetAncestorsAsync(CatListFilter filterObject)
+    {
+        Queue<Cat> queue = new();
+        CatsUtil.ObjectCache cache = _serviceProvider.GetRequiredService<CatsUtil.ObjectCache>();
+        CatListFilter filter = new();
+        filter.Self = filterObject.Descendant;
+        if(filter.Self is { })
+        {
+            await foreach (Cat cat in GetCatsAsync(filter))
+            {
+                queue.Enqueue(cat);
+                break;
+            }
+            filter.Self = null;
+            while (queue.Count > 0)
+            {
+                Cat currentDescendant = queue.Dequeue();
+                for(int step = 0; step < 2; ++step)
+                {
+                    if(step == 0)
+                    {
+                        filter.Self = currentDescendant.Litter?.Female ?? null;
+                    } else
+                    {
+                        filter.Self = currentDescendant.Litter?.Male ?? null;
+                    }
+                    if(filter.Self is { })
+                    {
+                        await foreach (Cat cat in GetCatsAsync(filter))
+                        {
+                            IKeyRing keyRingCat = _serviceProvider.GetRequiredService<IKeyBox>().GetKeyRing(cat)!;
+                            if (!cache.TryGet(keyRingCat, out Cat? _))
+                            {
+                                queue.Enqueue(cat);
+                                cache.Add<Cat>(keyRingCat, cat);
+                                if (TestFilter(filterObject, cat))
+                                {
+                                    yield return cat;
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     internal async IAsyncEnumerable<Cat> GetDescendantsAsync(CatListFilter filterObject)
     {
         Queue<Cat> queue = new();
-        ObjectCache cache = _serviceProvider.GetRequiredService<ObjectCache>();
+        CatsUtil.ObjectCache cache = _serviceProvider.GetRequiredService<CatsUtil.ObjectCache>();
         CatListFilter filter = new();
         filter.Self = filterObject.Ancestor;
-        await foreach(Cat cat in GetCatsAsync(filter))
+        if(filter.Self is { })
         {
-            queue.Enqueue(cat);
-            break;
-        }
-        filter.Self = null;
-        while (queue.Count > 0)
-        {
-            Cat currentAncestor = queue.Dequeue();
-            for(int step = 0; step < 2; ++step)
+            await foreach (Cat cat in GetCatsAsync(filter))
             {
-                if (step == 0 && (currentAncestor!.Gender is Gender.Female || currentAncestor.Gender is Gender.Castrate))
+                queue.Enqueue(cat);
+                break;
+            }
+            filter.Self = null;
+            while (queue.Count > 0)
+            {
+                Cat currentAncestor = queue.Dequeue();
+                for (int step = 0; step < 2; ++step)
                 {
-                    filter.Mother = currentAncestor;
-                    filter.Father = null;
-                }
-                else if (step == 1 && (currentAncestor!.Gender is Gender.Male || currentAncestor.Gender is Gender.Castrate))
-                {
-                    filter.Father = currentAncestor;
-                    filter.Mother = null;
-                }
-                if(filter.Mother is { } || filter.Father is { })
-                {
-                    await foreach (Cat cat in GetCatsAsync(filter))
+                    if (step == 0 && (currentAncestor!.Gender is Gender.Female || currentAncestor.Gender is Gender.FemaleCastrate))
                     {
-                        IKeyRing keyRingCat = _serviceProvider.GetRequiredService<IKeyBox>().GetKeyRing(cat)!;
-                        if (!cache.TryGet(keyRingCat, out Cat? _))
+                        filter.Mother = currentAncestor;
+                        filter.Father = null;
+                    }
+                    else if (step == 1 && (currentAncestor!.Gender is Gender.Male || currentAncestor.Gender is Gender.MaleCastrate))
+                    {
+                        filter.Father = currentAncestor;
+                        filter.Mother = null;
+                    }
+                    if (filter.Mother is { } || filter.Father is { })
+                    {
+                        await foreach (Cat cat in GetCatsAsync(filter))
                         {
-                            queue.Enqueue(cat);
-                            cache.Add<Cat>(keyRingCat, cat);
-                            if (TestFilter(filterObject, cat))
+                            IKeyRing keyRingCat = _serviceProvider.GetRequiredService<IKeyBox>().GetKeyRing(cat)!;
+                            if (!cache.TryGet(keyRingCat, out Cat? _))
                             {
-                                yield return cat;
+                                queue.Enqueue(cat);
+                                cache.Add<Cat>(keyRingCat, cat);
+                                if (TestFilter(filterObject, cat))
+                                {
+                                    yield return cat;
+                                }
                             }
                         }
                     }
@@ -142,7 +193,7 @@ public class Storage
         IKeyRing? keyRingCat = null;
         if (filterObject.Father is { })
         {
-            if(keyRingCat is null)
+            if (keyRingCat is null)
             {
                 keyRingCat = _serviceProvider.GetRequiredService<IKeyBox>().GetKeyRing(cat)!;
             }
@@ -244,7 +295,7 @@ public class Storage
         sqlCommand.CommandText = sb.ToString();
         sqlCommand.Connection = conn;
 
-        ObjectCache cache = _serviceProvider.GetRequiredService<ObjectCache>();
+        CatsUtil.ObjectCache cache = _serviceProvider.GetRequiredService<CatsUtil.ObjectCache>();
 
         using DbDataReader dataReader = await sqlCommand.ExecuteReaderAsync();
 
@@ -270,11 +321,11 @@ public class Storage
         }
     }
 
-    private void LoadSingleCat(ObjectCache cache, DbDataReader dataReader, Cat cat)
+    private void LoadSingleCat(CatsUtil.ObjectCache cache, DbDataReader dataReader, Cat cat)
     {
         cat.NameEng = dataReader["NameEng"].ToString()!.Trim();
         cat.NameNat = dataReader["NameNat"].ToString()!.Trim();
-        cat.Gender = dataReader["Gender"].ToString()!.Trim() switch { "M" => Gender.Male, "F" => Gender.Female, _ => Gender.Castrate };
+        cat.Gender = dataReader["Gender"].ToString()!.Trim() switch { "M" => Gender.Male, "F" => Gender.Female, "MC" => Gender.MaleCastrate, "FC" => Gender.FemaleCastrate, _ => Gender.Female };
         cat.OwnerInfo = dataReader["OwnerInfo"].ToString()!.Trim();
         cat.Exterior = dataReader["Exterior"].ToString()!.Trim();
         cat.Title = dataReader["Title"].ToString()!.Trim();

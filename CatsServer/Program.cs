@@ -16,7 +16,7 @@ builder.Services.AddSingleton<Storage>(serviceProvider => new Storage(servicePro
 builder.Services.AddTransient<KeyRingJsonConverterFactory>();
 builder.Services.AddTransient<DateOnlyJsonConverter>();
 builder.Services.AddTransient(typeof(EnumJsonConverter<>));
-builder.Services.AddTransient<ObjectCache>();
+//builder.Services.AddTransient<ObjectCache>();
 
 builder.Services.AddControllers();
 
@@ -24,6 +24,9 @@ var app = builder.Build();
 
 app.MapControllers();
 
-app.MapGet("/", () => "Hello World!");
+app.MapGet("/", async context => 
+{
+    await context.Response.WriteAsync(context.RequestServices.GetRequiredService<IKeyBox>().Serialize());
+});
 
 app.Run();

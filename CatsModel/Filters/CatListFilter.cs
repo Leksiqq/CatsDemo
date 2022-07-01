@@ -12,5 +12,6 @@ public class CatListFilter
     public Cat? Mother { get; set; }
     public Cat? Father { get; set; }
     public Cat? Ancestor { get; set; }
+    public Cat? Descendant { get; set; }
     public Litter? Litter { get; set; }
 }
